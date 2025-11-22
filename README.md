@@ -1,46 +1,116 @@
-# Getting Started with Create React App
+# FloodGuard - Real-Time Flood Alert System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A modern React application built with TypeScript, Material-UI, and OpenLayers for real-time flood monitoring and alerting.
+
+## Features
+
+- **Real-time Map Interface**: Interactive map powered by OpenLayers with satellite imagery
+- **Flood Risk Monitoring**: Visual indicators for high, moderate, and low risk areas
+- **Weather Station Integration**: Real-time data from rain gauges and weather stations
+- **Responsive Design**: Modern UI built with Material-UI components
+- **Timeline Controls**: Playback controls for historical data visualization
+- **Search Functionality**: Location and address search capabilities
+
+## Tech Stack
+
+- **React 19** with TypeScript
+- **Material-UI (MUI)** for UI components and theming
+- **OpenLayers** for interactive mapping
+- **Prettier** for code formatting
+- **ESLint** for code linting
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone <repository-url>
+cd FloodAlertDashboard
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Start the development server:
+
+```bash
+npm start
+```
+
+4. Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start` - Runs the app in development mode
+- `npm run build` - Builds the app for production
+- `npm test` - Launches the test runner
+- `npm run format` - Formats code using Prettier
+- `npm run format:check` - Checks code formatting
+- `npm run eject` - Ejects from Create React App (one-way operation)
 
-### `npm start`
+## Project Structure
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```
+src/
+├── components/
+│   ├── Header.tsx          # Top navigation bar
+│   ├── Sidebar.tsx         # Left sidebar with search
+│   ├── MapArea.tsx         # Main map component
+│   ├── MonitorPanel.tsx    # Flood monitoring panel
+│   └── Footer.tsx          # Bottom timeline controls
+├── App.tsx                 # Main application component
+├── App.css                 # Global styles
+└── index.tsx              # Application entry point
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Configuration
 
-### `npm test`
+### Prettier
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Code formatting is configured in `.prettierrc` with the following settings:
 
-### `npm run build`
+- Single quotes
+- Semicolons
+- 2-space indentation
+- 80 character line width
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### ESLint
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Linting is configured in `.eslintrc.json` with:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- React app configuration
+- Prettier integration
+- TypeScript support
 
-### `npm run eject`
+## Development
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+The application uses a component-based architecture with:
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- **Header**: Logo, title, current time, and emergency button
+- **Sidebar**: Reports section and search functionality
+- **MapArea**: Interactive OpenLayers map with controls
+- **MonitorPanel**: Flood risk and weather station monitoring
+- **Footer**: Timeline controls and playback options
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## Contributing
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run `npm run format` to format code
+5. Run `npm test` to ensure tests pass
+6. Submit a pull request
 
-## Learn More
+## License
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+This project is licensed under the MIT License.
