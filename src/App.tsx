@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
@@ -46,10 +46,20 @@ function App() {
   const [layers, setLayers] = useState<LayerState>({
     floodRisk: true,
     weatherStations: true,
-    reportsHeatmap: false,
+    reportsHeatmap: true,
   });
   const [showReportsPane, setShowReportsPane] = useState(false);
   const [showAlertsPane, setShowAlertsPane] = useState(false);
+  const [navigateToLocation, setNavigateToLocation] = useState<
+    ((lat: number, lng: number) => void) | null
+  >(null);
+
+  const handleNavigationReady = useCallback(
+    (navigateFn: (lat: number, lng: number) => void) => {
+      setNavigateToLocation(() => navigateFn);
+    },
+    []
+  );
 
   return (
     <ThemeProvider theme={theme}>
@@ -63,7 +73,7 @@ function App() {
         }}
       >
         <Header
-          showTime={layers.floodRisk}
+          showTime={true}
           onAlertsClick={() => setShowAlertsPane(!showAlertsPane)}
         />
         <Box
@@ -78,14 +88,16 @@ function App() {
             layers={layers}
             setLayers={setLayers}
             onReportsClick={() => setShowReportsPane(!showReportsPane)}
+            onNavigationReady={handleNavigationReady}
           />
         </Box>
-        <Footer showTimeline={layers.floodRisk} />
+        {layers.floodRisk && <Footer showTimeline={layers.floodRisk} />}
 
         {/* Right Side Panes */}
         <ReportsPane
           isOpen={showReportsPane}
           onClose={() => setShowReportsPane(false)}
+          navigateToLocation={navigateToLocation}
         />
         <AlertsPane
           isOpen={showAlertsPane}

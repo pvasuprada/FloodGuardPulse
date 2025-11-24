@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -33,8 +33,9 @@ import OSM from 'ol/source/OSM';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { Feature } from 'ol';
 import { Point } from 'ol/geom';
-import { Style, Circle, Fill, Stroke } from 'ol/style';
+import { Style, Circle, Fill, Stroke, Icon } from 'ol/style';
 import { Pointer } from 'ol/interaction';
+import GeoJSON from 'ol/format/GeoJSON';
 import 'ol/ol.css';
 import LegendPopup from './LegendPopup';
 
@@ -48,12 +49,14 @@ interface MapAreaProps {
   layers: LayerState;
   setLayers: React.Dispatch<React.SetStateAction<LayerState>>;
   onReportsClick: () => void;
+  onNavigationReady?: (navigateFn: (lat: number, lng: number) => void) => void;
 }
 
 const MapArea: React.FC<MapAreaProps> = ({
   layers,
   setLayers,
   onReportsClick,
+  onNavigationReady,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -61,6 +64,11 @@ const MapArea: React.FC<MapAreaProps> = ({
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<Map | null>(null);
+  const reportsHeatmapSourceRef = useRef<VectorSource | null>(null);
+  const weatherStationSourceRef = useRef<VectorSource | null>(null);
+  const floodRiskLayerRef = useRef<VectorLayer | null>(null);
+  const weatherStationLayerRef = useRef<VectorLayer | null>(null);
+  const reportsHeatmapLayerRef = useRef<VectorLayer | null>(null);
   const [layersMenuAnchor, setLayersMenuAnchor] = useState<null | HTMLElement>(
     null
   );
@@ -120,73 +128,132 @@ const MapArea: React.FC<MapAreaProps> = ({
     return features;
   };
 
-  const createWeatherStationFeatures = (): Feature[] => {
-    const features: Feature[] = [];
-    const center = fromLonLat([78.4772, 17.4065]);
-
-    // Create sample weather stations
-    const stations = [
-      [center[0] - 0.005, center[1] - 0.005],
-      [center[0] + 0.005, center[1] - 0.005],
-      [center[0] - 0.005, center[1] + 0.005],
-      [center[0] + 0.005, center[1] + 0.005],
-    ];
-
-    stations.forEach((coord) => {
-      const feature = new Feature({
-        geometry: new Point(coord),
-        type: 'weather_station',
-      });
-
-      feature.setStyle(
-        new Style({
-          image: new Circle({
-            radius: 6,
-            fill: new Fill({ color: '#1976d2' }),
-            stroke: new Stroke({ color: '#fff', width: 2 }),
-          }),
-        })
-      );
-
-      features.push(feature);
-    });
-
-    return features;
+  // Generate weather station icon SVG data URL
+  const createWeatherStationIcon = (): string => {
+    const svg = `<svg id="Weather-Station--Streamline-Carbon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" height="16" width="16"><desc>Weather Station Streamline Icon: https://streamlinehq.com</desc><defs></defs><path d="M8.5 14V8.5h0.5a1.00115 1.00115 0 0 0 1 -1v-2a1.00115 1.00115 0 0 0 -1 -1h-2a1.00115 1.00115 0 0 0 -1 1v2a1.00115 1.00115 0 0 0 1 1h0.5v5.5H1v1h14v-1Zm-1.5 -8.5h2l0.00075 2H7Z" fill="#1976d2" stroke-width="0.5"></path><path d="M4.66625 9.1084a3.50035 3.50035 0 0 1 0 -5.21705l0.667 0.745a2.5 2.5 0 0 0 0 3.72685Z" fill="#1976d2" stroke-width="0.5"></path><path d="m11.3335 9.1084 -0.667 -0.745a2.49975 2.49975 0 0 0 0 -3.72685l0.667 -0.745a3.5 3.5 0 0 1 0 5.21705Z" fill="#1976d2" stroke-width="0.5"></path><path d="M3.1997 10.9004a5.50095 5.50095 0 0 1 0 -8.8003L3.8 2.9a4.50045 4.50045 0 0 0 0 7.2007Z" fill="#1976d2" stroke-width="0.5"></path><path d="m12.8003 10.9004 -0.6006 -0.8a4.5005 4.5005 0 0 0 0 -7.20095l0.6006 -0.8a5.501 5.501 0 0 1 0 8.80055Z" fill="#1976d2" stroke-width="0.5"></path><path id="_Transparent_Rectangle_" d="M0 0h16v16H0Z" fill="none" stroke-width="0.5"></path></svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
   };
 
-  const createReportsHeatmapFeatures = (): Feature[] => {
-    const features: Feature[] = [];
-    const center = fromLonLat([78.4772, 17.4065]);
+  // Fetch and load weather stations GeoJSON
+  const loadWeatherStationsData = useCallback(async () => {
+    if (!weatherStationSourceRef.current) return;
 
-    // Create sample report points
-    const reports = [
-      [center[0] - 0.008, center[1] - 0.008],
-      [center[0] + 0.008, center[1] - 0.008],
-      [center[0] - 0.008, center[1] + 0.008],
-      [center[0] + 0.008, center[1] + 0.008],
-    ];
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/rain-gauge`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch weather stations data');
+      }
 
-    reports.forEach((coord) => {
-      const feature = new Feature({
-        geometry: new Point(coord),
-        type: 'report',
+      const geoJsonData = await response.json();
+      const geoJsonFormat = new GeoJSON();
+      const features = geoJsonFormat.readFeatures(geoJsonData, {
+        featureProjection: 'EPSG:3857',
       });
 
-      feature.setStyle(
-        new Style({
-          image: new Circle({
-            radius: 4,
-            fill: new Fill({ color: '#9c27b0' }),
-            stroke: new Stroke({ color: '#fff', width: 1 }),
-          }),
-        })
-      );
+      // Style features with weather station icon
+      const iconUrl = createWeatherStationIcon();
+      features.forEach((feature) => {
+        feature.setStyle(
+          new Style({
+            image: new Icon({
+              src: iconUrl,
+              scale: 1.5,
+              anchor: [0.5, 0.5],
+            }),
+          })
+        );
+      });
 
-      features.push(feature);
-    });
+      weatherStationSourceRef.current.clear();
+      weatherStationSourceRef.current.addFeatures(features);
+    } catch (error) {
+      console.error('Error loading weather stations data:', error);
+    }
+  }, []);
 
-    return features;
+  // Get color based on severity
+  const getSeverityColor = (severity: string): string => {
+    const severityLower = severity.toLowerCase();
+    switch (severityLower) {
+      case 'high':
+        return '#d32f2f';
+      case 'moderate':
+        return '#ff9800';
+      case 'low':
+        return '#ffeb3b';
+      default:
+        return '#9c27b0';
+    }
   };
+
+  // Generate SVG alert icon data URL
+  const createAlertIcon = (color: string): string => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${color}"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  };
+
+  // Navigate to a location on the map
+  const navigateToLocation = useCallback((lat: number, lng: number) => {
+    if (mapInstanceRef.current) {
+      const view = mapInstanceRef.current.getView();
+      view.animate({
+        center: fromLonLat([lng, lat]),
+        zoom: 15,
+        duration: 1000,
+      });
+    }
+  }, []);
+
+  // Expose navigation function to parent component
+  useEffect(() => {
+    if (onNavigationReady) {
+      onNavigationReady(navigateToLocation);
+    }
+  }, [onNavigationReady, navigateToLocation]);
+
+  // Fetch and load reports heatmap GeoJSON
+  const loadReportsHeatmapData = useCallback(async () => {
+    if (!reportsHeatmapSourceRef.current) return;
+
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      const response = await fetch(
+        `${apiUrl}/api/reported-floods-geojsonlayer`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch reports heatmap data');
+      }
+
+      const geoJsonData = await response.json();
+      const geoJsonFormat = new GeoJSON();
+      const features = geoJsonFormat.readFeatures(geoJsonData, {
+        featureProjection: 'EPSG:3857',
+      });
+
+      // Style features based on severity with alert icons
+      features.forEach((feature) => {
+        const severity = feature.get('severity') || 'low';
+        const color = getSeverityColor(severity);
+        const iconUrl = createAlertIcon(color);
+
+        feature.setStyle(
+          new Style({
+            image: new Icon({
+              src: iconUrl,
+              scale: 1.2,
+              anchor: [0.5, 1],
+            }),
+          })
+        );
+      });
+
+      reportsHeatmapSourceRef.current.clear();
+      reportsHeatmapSourceRef.current.addFeatures(features);
+    } catch (error) {
+      console.error('Error loading reports heatmap data:', error);
+    }
+  }, []);
 
   useEffect(() => {
     if (mapRef.current && !mapInstanceRef.current) {
@@ -195,13 +262,11 @@ const MapArea: React.FC<MapAreaProps> = ({
         features: createFloodRiskFeatures(),
       });
 
-      const weatherStationSource = new VectorSource({
-        features: createWeatherStationFeatures(),
-      });
+      const weatherStationSource = new VectorSource();
+      weatherStationSourceRef.current = weatherStationSource;
 
-      const reportsHeatmapSource = new VectorSource({
-        features: createReportsHeatmapFeatures(),
-      });
+      const reportsHeatmapSource = new VectorSource();
+      reportsHeatmapSourceRef.current = reportsHeatmapSource;
 
       // Create layers
       const baseLayer = new TileLayer({
@@ -212,16 +277,19 @@ const MapArea: React.FC<MapAreaProps> = ({
         source: floodRiskSource,
         visible: layers.floodRisk,
       });
+      floodRiskLayerRef.current = floodRiskLayer;
 
       const weatherStationLayer = new VectorLayer({
         source: weatherStationSource,
         visible: layers.weatherStations,
       });
+      weatherStationLayerRef.current = weatherStationLayer;
 
       const reportsHeatmapLayer = new VectorLayer({
         source: reportsHeatmapSource,
         visible: layers.reportsHeatmap,
       });
+      reportsHeatmapLayerRef.current = reportsHeatmapLayer;
 
       // Initialize OpenLayers map
       const map = new Map({
@@ -268,27 +336,58 @@ const MapArea: React.FC<MapAreaProps> = ({
 
       mapInstanceRef.current = map;
 
+      // Load reports heatmap data if layer is enabled
+      if (layers.reportsHeatmap) {
+        loadReportsHeatmapData();
+      }
+
+      // Weather stations data will be loaded by the useEffect below
+
       // Cleanup function
       return () => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.setTarget(undefined);
           mapInstanceRef.current = null;
         }
+        reportsHeatmapSourceRef.current = null;
+        weatherStationSourceRef.current = null;
+        floodRiskLayerRef.current = null;
+        weatherStationLayerRef.current = null;
+        reportsHeatmapLayerRef.current = null;
       };
     }
-  }, [layers.floodRisk, layers.weatherStations, layers.reportsHeatmap]);
+  }, [loadReportsHeatmapData, loadWeatherStationsData]);
 
   // Update layer visibility when layers state changes
   useEffect(() => {
-    if (mapInstanceRef.current) {
-      const mapLayers = mapInstanceRef.current.getLayers().getArray();
-      if (mapLayers.length > 1) {
-        mapLayers[1].setVisible(layers.floodRisk); // Flood risk layer
-        mapLayers[2].setVisible(layers.weatherStations); // Weather stations layer
-        mapLayers[3].setVisible(layers.reportsHeatmap); // Reports heatmap layer
-      }
+    if (floodRiskLayerRef.current) {
+      floodRiskLayerRef.current.setVisible(layers.floodRisk);
+    }
+    if (weatherStationLayerRef.current) {
+      weatherStationLayerRef.current.setVisible(layers.weatherStations);
+    }
+    if (reportsHeatmapLayerRef.current) {
+      reportsHeatmapLayerRef.current.setVisible(layers.reportsHeatmap);
     }
   }, [layers.floodRisk, layers.weatherStations, layers.reportsHeatmap]);
+
+  // Load reports heatmap data when layer is enabled
+  useEffect(() => {
+    if (layers.reportsHeatmap && reportsHeatmapSourceRef.current) {
+      loadReportsHeatmapData();
+    }
+  }, [layers.reportsHeatmap, loadReportsHeatmapData]);
+
+  // Load weather stations data when layer is enabled or on initial mount
+  useEffect(() => {
+    if (
+      layers.weatherStations &&
+      weatherStationSourceRef.current &&
+      mapInstanceRef.current
+    ) {
+      loadWeatherStationsData();
+    }
+  }, [layers.weatherStations, loadWeatherStationsData]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
