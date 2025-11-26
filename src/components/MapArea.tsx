@@ -85,10 +85,11 @@ const MapArea: React.FC<MapAreaProps> = ({
   const [showSearchResults, setShowSearchResults] = useState(false);
 
   // GeoServer WMS configuration for flood risk zones
-  // Use direct localhost:8080 URL (no proxy)
-  const geoserverWmsUrl =
-    process.env.REACT_APP_GEOSERVER_URL ||
-    'http://localhost:8080/geoserver/ne/wms';
+  const geoserverBaseUrl = process.env.REACT_APP_GEOSERVER_URL ?? '';
+  const geoserverWmsUrl = geoserverBaseUrl
+    ? `${geoserverBaseUrl.replace(/\/$/, '')}/geoserver/ne/wms`
+    : '';
+  const apiBaseUrl = process.env.REACT_APP_API_URL ?? '';
   const floodRiskLayerName =
     process.env.REACT_APP_FLOOD_RISK_LAYER || 'ne:model_10_shifted';
 
@@ -106,9 +107,11 @@ const MapArea: React.FC<MapAreaProps> = ({
     }
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-      console.log('Loading weather stations from:', `${apiUrl}/api/rain-gauge`);
-      const response = await fetch(`${apiUrl}/api/rain-gauge`);
+      console.log(
+        'Loading weather stations from:',
+        `${apiBaseUrl}/api/rain-gauge`
+      );
+      const response = await fetch(`${apiBaseUrl}/api/rain-gauge`);
       if (!response.ok) {
         throw new Error('Failed to fetch weather stations data');
       }
@@ -192,13 +195,12 @@ const MapArea: React.FC<MapAreaProps> = ({
     }
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
       console.log(
         'Loading reports heatmap from:',
-        `${apiUrl}/api/reported-floods-geojsonlayer`
+        `${apiBaseUrl}/api/reported-floods-geojsonlayer`
       );
       const response = await fetch(
-        `${apiUrl}/api/reported-floods-geojsonlayer`
+        `${apiBaseUrl}/api/reported-floods-geojsonlayer`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch reports heatmap data');

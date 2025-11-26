@@ -41,13 +41,20 @@ cd FloodAlertDashboard
 npm install
 ```
 
-3. Start the development server:
+3. Configure environment variables:
+
+```bash
+cp env.example .env.local
+# edit .env.local to point at your API/GeoServer hosts
+```
+
+4. Start the development server:
 
 ```bash
 npm start
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) to view the application.
+5. Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## Available Scripts
 
@@ -74,6 +81,13 @@ src/
 ```
 
 ## Configuration
+
+### Environment Variables
+
+- `REACT_APP_API_URL`: Base URL for the Flood Alert API (e.g., staging or production service)
+- `REACT_APP_GEOSERVER_URL`: Base URL for your GeoServer instance
+
+Create a `.env.local` (or use `.env`) to provide these values; the React components read them directly via `process.env`. For production builds, copy `.env.production` (included in the repo) and update it with your deployment URLs before running `npm run build`.
 
 ### Prettier
 

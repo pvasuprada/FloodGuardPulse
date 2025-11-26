@@ -47,6 +47,7 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const apiBaseUrl = process.env.REACT_APP_API_URL ?? '';
 
   const [reports, setReports] = useState<FloodReport[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,8 +80,7 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
     setIsLoadingReports(true);
     setReportsError(null);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/reported-floods`);
+      const response = await fetch(`${apiBaseUrl}/api/reported-floods`);
       if (!response.ok) {
         throw new Error('Failed to fetch reports');
       }
@@ -253,8 +253,7 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
         formDataToSend.append('photo_evidence', formData.photo_evidence);
       }
 
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/report-flood`, {
+      const response = await fetch(`${apiBaseUrl}/api/report-flood`, {
         method: 'POST',
         body: formDataToSend,
       });
