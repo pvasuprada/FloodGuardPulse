@@ -30,10 +30,9 @@ import TileLayer from 'ol/layer/Tile';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import OSM from 'ol/source/OSM';
+import TileWMS from 'ol/source/TileWMS';
 import { fromLonLat, toLonLat } from 'ol/proj';
-import { Feature } from 'ol';
-import { Point } from 'ol/geom';
-import { Style, Circle, Fill, Stroke, Icon } from 'ol/style';
+import { Style, Icon } from 'ol/style';
 import { Pointer } from 'ol/interaction';
 import GeoJSON from 'ol/format/GeoJSON';
 import 'ol/ol.css';
@@ -60,13 +59,12 @@ const MapArea: React.FC<MapAreaProps> = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<Map | null>(null);
   const reportsHeatmapSourceRef = useRef<VectorSource | null>(null);
   const weatherStationSourceRef = useRef<VectorSource | null>(null);
-  const floodRiskLayerRef = useRef<VectorLayer | null>(null);
+  const floodRiskLayerRef = useRef<TileLayer | null>(null);
   const weatherStationLayerRef = useRef<VectorLayer | null>(null);
   const reportsHeatmapLayerRef = useRef<VectorLayer | null>(null);
   const [layersMenuAnchor, setLayersMenuAnchor] = useState<null | HTMLElement>(
@@ -86,47 +84,13 @@ const MapArea: React.FC<MapAreaProps> = ({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  // Create sample data for layers
-  const createFloodRiskFeatures = (): Feature[] => {
-    const features: Feature[] = [];
-    const center = fromLonLat([78.4772, 17.4065]);
-
-    // Create sample flood risk points
-    const riskPoints = [
-      { coord: [center[0] - 0.01, center[1] - 0.01], risk: 'high' },
-      { coord: [center[0] + 0.01, center[1] - 0.01], risk: 'moderate' },
-      { coord: [center[0] - 0.01, center[1] + 0.01], risk: 'low' },
-      { coord: [center[0] + 0.01, center[1] + 0.01], risk: 'high' },
-    ];
-
-    riskPoints.forEach((point) => {
-      const feature = new Feature({
-        geometry: new Point(point.coord),
-        risk: point.risk,
-      });
-
-      const color =
-        point.risk === 'high'
-          ? '#d32f2f'
-          : point.risk === 'moderate'
-            ? '#ff9800'
-            : '#ffeb3b';
-
-      feature.setStyle(
-        new Style({
-          image: new Circle({
-            radius: 8,
-            fill: new Fill({ color }),
-            stroke: new Stroke({ color: '#fff', width: 2 }),
-          }),
-        })
-      );
-
-      features.push(feature);
-    });
-
-    return features;
-  };
+  // GeoServer WMS configuration for flood risk zones
+  // Use direct localhost:8080 URL (no proxy)
+  const geoserverWmsUrl =
+    process.env.REACT_APP_GEOSERVER_URL ||
+    'http://localhost:8080/geoserver/ne/wms';
+  const floodRiskLayerName =
+    process.env.REACT_APP_FLOOD_RISK_LAYER || 'ne:model_10_shifted';
 
   // Generate weather station icon SVG data URL
   const createWeatherStationIcon = (): string => {
@@ -136,20 +100,27 @@ const MapArea: React.FC<MapAreaProps> = ({
 
   // Fetch and load weather stations GeoJSON
   const loadWeatherStationsData = useCallback(async () => {
-    if (!weatherStationSourceRef.current) return;
+    if (!weatherStationSourceRef.current) {
+      console.warn('Weather station source not available');
+      return;
+    }
 
     try {
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      console.log('Loading weather stations from:', `${apiUrl}/api/rain-gauge`);
       const response = await fetch(`${apiUrl}/api/rain-gauge`);
       if (!response.ok) {
         throw new Error('Failed to fetch weather stations data');
       }
 
       const geoJsonData = await response.json();
+      console.log('Weather stations data loaded:', geoJsonData);
       const geoJsonFormat = new GeoJSON();
       const features = geoJsonFormat.readFeatures(geoJsonData, {
         featureProjection: 'EPSG:3857',
       });
+
+      console.log('Weather stations features:', features.length);
 
       // Style features with weather station icon
       const iconUrl = createWeatherStationIcon();
@@ -167,6 +138,7 @@ const MapArea: React.FC<MapAreaProps> = ({
 
       weatherStationSourceRef.current.clear();
       weatherStationSourceRef.current.addFeatures(features);
+      console.log('Weather stations added to map');
     } catch (error) {
       console.error('Error loading weather stations data:', error);
     }
@@ -214,10 +186,17 @@ const MapArea: React.FC<MapAreaProps> = ({
 
   // Fetch and load reports heatmap GeoJSON
   const loadReportsHeatmapData = useCallback(async () => {
-    if (!reportsHeatmapSourceRef.current) return;
+    if (!reportsHeatmapSourceRef.current) {
+      console.warn('Reports heatmap source not available');
+      return;
+    }
 
     try {
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      console.log(
+        'Loading reports heatmap from:',
+        `${apiUrl}/api/reported-floods-geojsonlayer`
+      );
       const response = await fetch(
         `${apiUrl}/api/reported-floods-geojsonlayer`
       );
@@ -226,10 +205,13 @@ const MapArea: React.FC<MapAreaProps> = ({
       }
 
       const geoJsonData = await response.json();
+      console.log('Reports heatmap data loaded:', geoJsonData);
       const geoJsonFormat = new GeoJSON();
       const features = geoJsonFormat.readFeatures(geoJsonData, {
         featureProjection: 'EPSG:3857',
       });
+
+      console.log('Reports heatmap features:', features.length);
 
       // Style features based on severity with alert icons
       features.forEach((feature) => {
@@ -250,6 +232,7 @@ const MapArea: React.FC<MapAreaProps> = ({
 
       reportsHeatmapSourceRef.current.clear();
       reportsHeatmapSourceRef.current.addFeatures(features);
+      console.log('Reports heatmap added to map');
     } catch (error) {
       console.error('Error loading reports heatmap data:', error);
     }
@@ -258,10 +241,6 @@ const MapArea: React.FC<MapAreaProps> = ({
   useEffect(() => {
     if (mapRef.current && !mapInstanceRef.current) {
       // Create layer sources
-      const floodRiskSource = new VectorSource({
-        features: createFloodRiskFeatures(),
-      });
-
       const weatherStationSource = new VectorSource();
       weatherStationSourceRef.current = weatherStationSource;
 
@@ -273,11 +252,150 @@ const MapArea: React.FC<MapAreaProps> = ({
         source: new OSM(),
       });
 
-      const floodRiskLayer = new VectorLayer({
-        source: floodRiskSource,
+      // Create GeoServer WMS layer for flood risk zones
+      // Configured to match GeoServer settings: EPSG:3857, tile size 512x512
+      const floodRiskWmsSource = new TileWMS({
+        url: geoserverWmsUrl,
+        params: {
+          LAYERS: floodRiskLayerName,
+          TILED: true,
+          VERSION: '1.1.0',
+          FORMAT: 'image/png',
+          TRANSPARENT: true,
+          SRS: 'EPSG:3857',
+          // Use 512x512 tile size to match GeoServer suggested tile size
+          WIDTH: '512',
+          HEIGHT: '512',
+          // Add style parameter (empty string uses default style)
+          // If you have a custom style in GeoServer, specify it here
+          STYLES: '',
+        },
+        serverType: 'geoserver',
+        transition: 0,
+        // Set crossOrigin for direct connection to GeoServer
+        // You may need to configure CORS on GeoServer to allow requests from your app origin
+        crossOrigin: 'anonymous',
+        // Custom tile load function to add cache-busting and handle 304 errors
+        tileLoadFunction: (tile, src) => {
+          const image = (tile as any).getImage() as HTMLImageElement;
+          if (image) {
+            try {
+              // Add timestamp to URL to bypass cache and avoid 304 responses
+              const url = new URL(src);
+              url.searchParams.set('_t', Date.now().toString());
+              // Ensure tile size parameters are set
+              url.searchParams.set('WIDTH', '512');
+              url.searchParams.set('HEIGHT', '512');
+              url.searchParams.set('SRS', 'EPSG:3857');
+              const finalUrl = url.toString();
+
+              // Set up error handling before loading
+              image.onerror = () => {
+                console.error('Failed to load WMS tile:', finalUrl);
+                // Log the actual image to see what was returned
+                console.error('Image error details:', {
+                  src: image.src,
+                  complete: image.complete,
+                  naturalWidth: image.naturalWidth,
+                  naturalHeight: image.naturalHeight,
+                });
+                // Try to reload with a new timestamp if it fails
+                setTimeout(() => {
+                  const retryUrl = new URL(src);
+                  retryUrl.searchParams.set('_t', Date.now().toString());
+                  retryUrl.searchParams.set('WIDTH', '512');
+                  retryUrl.searchParams.set('HEIGHT', '512');
+                  image.src = retryUrl.toString();
+                }, 1000);
+              };
+
+              image.onload = () => {
+                console.log('WMS tile loaded successfully', {
+                  width: image.naturalWidth,
+                  height: image.naturalHeight,
+                  src: image.src.substring(0, 100) + '...',
+                });
+                // Check if image is actually visible (not all white/transparent)
+                const canvas = document.createElement('canvas');
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(image, 0, 0);
+                  const imageData = ctx.getImageData(
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                  );
+                  const data = imageData.data;
+                  // Check if image has non-transparent pixels
+                  let hasVisiblePixels = false;
+                  for (let i = 3; i < data.length; i += 4) {
+                    if (data[i] > 0) {
+                      // Alpha channel > 0 means pixel is visible
+                      hasVisiblePixels = true;
+                      break;
+                    }
+                  }
+                  if (!hasVisiblePixels) {
+                    console.warn('WMS tile appears to be empty/transparent');
+                  }
+                }
+              };
+
+              image.src = finalUrl;
+            } catch (error) {
+              console.error('Error constructing tile URL:', error);
+              image.src = src;
+            }
+          }
+        },
+      });
+
+      const floodRiskLayer = new TileLayer({
+        source: floodRiskWmsSource,
         visible: layers.floodRisk,
+        opacity: 0.7,
       });
       floodRiskLayerRef.current = floodRiskLayer;
+
+      // Add error handling for WMS layer
+      const wmsSource = floodRiskLayer.getSource();
+      if (wmsSource) {
+        wmsSource.on('tileloaderror', (event) => {
+          console.error('WMS tile load error:', event);
+          const tile = (event as any).tile;
+          if (tile) {
+            const image = (tile as any).getImage() as HTMLImageElement;
+            if (image) {
+              console.error('Failed tile URL:', image.src);
+              // Check if it's a 304 or other error
+              image.onerror = () => {
+                console.error('Image load failed for:', image.src);
+              };
+            }
+          }
+        });
+        wmsSource.on('tileloadstart', (event) => {
+          const tile = (event as any).tile;
+          if (tile) {
+            const image = (tile as any).getImage() as HTMLImageElement;
+            if (image) {
+              console.log('WMS tile loading:', image.src);
+            }
+          }
+        });
+        wmsSource.on('tileloadend', (event) => {
+          const tile = (event as any).tile;
+          if (tile) {
+            const image = (tile as any).getImage() as HTMLImageElement;
+            if (image && image.complete) {
+              console.log('WMS tile loaded successfully');
+            }
+          }
+        });
+      }
 
       const weatherStationLayer = new VectorLayer({
         source: weatherStationSource,
@@ -292,6 +410,7 @@ const MapArea: React.FC<MapAreaProps> = ({
       reportsHeatmapLayerRef.current = reportsHeatmapLayer;
 
       // Initialize OpenLayers map
+      // Layer order: base (bottom) -> flood risk WMS -> weather stations -> reports heatmap (top)
       const map = new Map({
         target: mapRef.current,
         layers: [
@@ -305,6 +424,12 @@ const MapArea: React.FC<MapAreaProps> = ({
           zoom: 12,
         }),
       });
+
+      // Set z-index to ensure proper layer ordering
+      baseLayer.setZIndex(0);
+      floodRiskLayer.setZIndex(1);
+      weatherStationLayer.setZIndex(2);
+      reportsHeatmapLayer.setZIndex(3);
 
       // Add click interaction
       const clickInteraction = new Pointer({
@@ -336,12 +461,25 @@ const MapArea: React.FC<MapAreaProps> = ({
 
       mapInstanceRef.current = map;
 
-      // Load reports heatmap data if layer is enabled
-      if (layers.reportsHeatmap) {
+      // Load data for all enabled layers
+      if (layers.reportsHeatmap && reportsHeatmapSourceRef.current) {
         loadReportsHeatmapData();
       }
 
-      // Weather stations data will be loaded by the useEffect below
+      if (
+        layers.weatherStations &&
+        weatherStationSourceRef.current &&
+        mapInstanceRef.current
+      ) {
+        loadWeatherStationsData();
+      }
+
+      // Log layer status for debugging
+      console.log('Map initialized with layers:', {
+        floodRisk: layers.floodRisk,
+        weatherStations: layers.weatherStations,
+        reportsHeatmap: layers.reportsHeatmap,
+      });
 
       // Cleanup function
       return () => {
@@ -356,7 +494,15 @@ const MapArea: React.FC<MapAreaProps> = ({
         reportsHeatmapLayerRef.current = null;
       };
     }
-  }, [loadReportsHeatmapData, loadWeatherStationsData]);
+  }, [
+    loadReportsHeatmapData,
+    loadWeatherStationsData,
+    geoserverWmsUrl,
+    floodRiskLayerName,
+    layers.floodRisk,
+    layers.reportsHeatmap,
+    layers.weatherStations,
+  ]);
 
   // Update layer visibility when layers state changes
   useEffect(() => {

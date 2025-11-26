@@ -33,9 +33,9 @@ const LegendPopup: React.FC<LegendPopupProps> = ({
   if (!isOpen) return null;
 
   const riskAreas = [
-    { level: 'High Risk', count: 'click for reports', color: '#d32f2f' },
-    { level: 'Moderate Risk', count: 'click for reports', color: '#ff9800' },
-    { level: 'Low Risk', count: 'click for reports', color: '#ffeb3b' },
+    { level: 'High Risk', count: 'click for reports', color: '#424242' }, // Dark gray
+    { level: 'Moderate Risk', count: 'click for reports', color: '#757575' }, // Medium gray
+    { level: 'Low Risk', count: 'click for reports', color: '#bdbdbd' }, // Light gray
   ];
 
   const weatherStations = [

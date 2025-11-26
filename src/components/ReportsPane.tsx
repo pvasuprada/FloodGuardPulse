@@ -22,6 +22,7 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
+  Paper,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -69,6 +70,10 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Location geocoding state
+  const [locationSearchResults, setLocationSearchResults] = useState<any[]>([]);
+  const [showLocationResults, setShowLocationResults] = useState(false);
+
   // Fetch reports from API
   const fetchReports = useCallback(async () => {
     setIsLoadingReports(true);
@@ -83,9 +88,7 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
       setReports(data);
     } catch (error) {
       setReportsError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to load flood reports'
+        error instanceof Error ? error.message : 'Failed to load flood reports'
       );
       setReports([]);
     } finally {
@@ -131,6 +134,8 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
     });
     setSubmitError(null);
     setSubmitSuccess(false);
+    setLocationSearchResults([]);
+    setShowLocationResults(false);
   };
 
   const handleInputChange = (
@@ -141,6 +146,49 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
       ...prev,
       [name]: value,
     }));
+
+    // Trigger geocoding search for location field
+    if (name === 'location') {
+      handleLocationGeocodeSearch(value);
+    }
+  };
+
+  const handleLocationGeocodeSearch = async (query: string) => {
+    if (!query.trim()) {
+      setLocationSearchResults([]);
+      setShowLocationResults(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query
+        )}&limit=5&addressdetails=1`
+      );
+      const results = await response.json();
+      setLocationSearchResults(results);
+      setShowLocationResults(true);
+    } catch (error) {
+      console.error('Geocode search error:', error);
+      setLocationSearchResults([]);
+      setShowLocationResults(false);
+    }
+  };
+
+  const handleLocationResultClick = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+
+    setFormData((prev) => ({
+      ...prev,
+      location: result.display_name,
+      latitude: lat.toString(),
+      longitude: lng.toString(),
+    }));
+
+    setLocationSearchResults([]);
+    setShowLocationResults(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,147 +434,167 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
         {!isLoadingReports &&
           !reportsError &&
           filteredReports.map((report) => (
-          <Card
-            key={report.id}
-            onClick={() => {
-              if (navigateToLocation && report.coordinates) {
-                navigateToLocation(
-                  report.coordinates.lat,
-                  report.coordinates.lng
-                );
-              }
-            }}
-            sx={{
-              mb: 2,
-              border: '1px solid #e0e0e0',
-              cursor: navigateToLocation ? 'pointer' : 'default',
-              '&:hover': {
-                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                backgroundColor: navigateToLocation
-                  ? 'rgba(0, 0, 0, 0.02)'
-                  : 'transparent',
-              },
-            }}
-          >
-            <CardContent sx={{ p: 2 }}>
-              {/* Header with severity and verification */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  mb: 1,
-                }}
-              >
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Chip
-                    label={report.severity}
-                    size="small"
-                    sx={{
-                      backgroundColor: getSeverityColor(report.severity),
-                      color: 'white',
-                      fontWeight: 600,
-                    }}
-                  />
-                  {report.verified && (
+            <Card
+              key={report.id}
+              onClick={() => {
+                if (navigateToLocation && report.coordinates) {
+                  navigateToLocation(
+                    report.coordinates.lat,
+                    report.coordinates.lng
+                  );
+                }
+              }}
+              sx={{
+                mb: 2,
+                border: '1px solid #e0e0e0',
+                cursor: navigateToLocation ? 'pointer' : 'default',
+                '&:hover': {
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                  backgroundColor: navigateToLocation
+                    ? 'rgba(0, 0, 0, 0.02)'
+                    : 'transparent',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                {/* Header with severity and verification */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', gap: 1 }}>
                     <Chip
-                      icon={<VerifiedIcon />}
-                      label="Verified"
+                      label={report.severity}
                       size="small"
                       sx={{
-                        backgroundColor: '#4caf50',
+                        backgroundColor: getSeverityColor(report.severity),
                         color: 'white',
                         fontWeight: 600,
                       }}
                     />
-                  )}
+                    {report.verified && (
+                      <Chip
+                        icon={<VerifiedIcon />}
+                        label="Verified"
+                        size="small"
+                        sx={{
+                          backgroundColor: '#4caf50',
+                          color: 'white',
+                          fontWeight: 600,
+                        }}
+                      />
+                    )}
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    {report.timestamp}
+                  </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {report.timestamp}
+
+                {/* Location */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mb: 1,
+                  }}
+                >
+                  <LocationIcon
+                    sx={{ color: 'text.secondary', fontSize: 16 }}
+                  />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    {report.location}
+                  </Typography>
+                </Box>
+
+                {/* Description */}
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'text.secondary',
+                    mb: 2,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {report.description}
                 </Typography>
-              </Box>
 
-              {/* Location */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  mb: 1,
-                }}
-              >
-                <LocationIcon sx={{ color: 'text.secondary', fontSize: 16 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  {report.location}
-                </Typography>
-              </Box>
-
-              {/* Description */}
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  mb: 2,
-                  lineHeight: 1.4,
-                }}
-              >
-                {report.description}
-              </Typography>
-
-              {/* Image placeholder */}
-              {report.imageUrl && (
+                {/* Image placeholder */}
                 <Box
                   sx={{
                     width: '100%',
                     height: 120,
-                    backgroundColor: '#f5f5f5',
                     borderRadius: 1,
                     mb: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    overflow: 'hidden',
                     border: '1px solid #e0e0e0',
+                    position: 'relative',
                   }}
                 >
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.secondary' }}
-                  >
-                    Image placeholder
-                  </Typography>
+                  <Box
+                    component="img"
+                    src={report.imageUrl || '/flood-placeholder.jpg'}
+                    alt={
+                      report.imageUrl
+                        ? 'Flood report image'
+                        : 'Flood placeholder'
+                    }
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                    onError={(e) => {
+                      // Fallback to placeholder if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      if (
+                        target.src !==
+                        `${window.location.origin}/flood-placeholder.jpg`
+                      ) {
+                        target.src = '/flood-placeholder.jpg';
+                      }
+                    }}
+                  />
                 </Box>
-              )}
 
-              {/* Reporter info */}
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
-                    {report.reporter.charAt(0)}
-                  </Avatar>
+                {/* Reporter info */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
+                      {report.reporter.charAt(0)}
+                    </Avatar>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      {report.reporter}
+                    </Typography>
+                  </Box>
                   <Typography
                     variant="caption"
                     sx={{ color: 'text.secondary' }}
                   >
-                    {report.reporter}
+                    Confidence: {report.confidence}%
                   </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  Confidence: {report.confidence}%
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           ))}
 
-        {!isLoadingReports &&
-          !reportsError &&
-          filteredReports.length === 0 && (
+        {!isLoadingReports && !reportsError && filteredReports.length === 0 && (
           <Box
             sx={{
               textAlign: 'center',
@@ -581,16 +649,81 @@ const ReportsPane: React.FC<ReportsPaneProps> = ({
                 </Alert>
               )}
 
-              <TextField
-                name="location"
-                label="Location"
-                value={formData.location}
-                onChange={handleInputChange}
-                required
-                fullWidth
-                placeholder="e.g., Banjara Hills"
-                disabled={isSubmitting}
-              />
+              <Box sx={{ position: 'relative' }}>
+                <TextField
+                  name="location"
+                  label="Location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  onFocus={() => {
+                    if (locationSearchResults.length > 0) {
+                      setShowLocationResults(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay hiding to allow click on results
+                    setTimeout(() => {
+                      setShowLocationResults(false);
+                    }, 200);
+                  }}
+                  required
+                  fullWidth
+                  placeholder="e.g., Banjara Hills"
+                  disabled={isSubmitting}
+                />
+                {/* Location Search Results Dropdown */}
+                {showLocationResults && locationSearchResults.length > 0 && (
+                  <Paper
+                    sx={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      mt: 0.5,
+                      maxHeight: 200,
+                      overflow: 'auto',
+                      boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                      borderRadius: 1,
+                      zIndex: 1300,
+                    }}
+                  >
+                    {locationSearchResults.map((result, index) => (
+                      <Box
+                        key={index}
+                        onClick={() => handleLocationResultClick(result)}
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          borderBottom:
+                            index < locationSearchResults.length - 1
+                              ? '1px solid #e0e0e0'
+                              : 'none',
+                          '&:hover': {
+                            backgroundColor: '#f5f5f5',
+                          },
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {result.display_name}
+                        </Typography>
+                        {result.address && (
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            {result.address.city ||
+                              result.address.town ||
+                              result.address.village ||
+                              ''}
+                            {result.address.state && `, ${result.address.state}`}
+                            {result.address.country && `, ${result.address.country}`}
+                          </Typography>
+                        )}
+                      </Box>
+                    ))}
+                  </Paper>
+                )}
+              </Box>
 
               <FormControl fullWidth required disabled={isSubmitting}>
                 <InputLabel>Severity Level</InputLabel>

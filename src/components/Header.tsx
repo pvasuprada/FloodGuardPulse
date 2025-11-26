@@ -59,21 +59,15 @@ const Header: React.FC<HeaderProps> = ({ showTime, onAlertsClick }) => {
           sx={{ display: 'flex', alignItems: 'center', gap: isMobile ? 1 : 2 }}
         >
           <Box
+            component="img"
+            src="/logo.png"
+            alt="FloodGuard Pulse Logo"
             sx={{
-              width: isMobile ? 32 : 40,
-              height: isMobile ? 32 : 40,
-              backgroundColor: '#e3f2fd',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: isMobile ? '16px' : '20px',
-              fontWeight: 'bold',
-              color: '#1976d2',
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              objectFit: 'contain',
             }}
-          >
-            F
-          </Box>
+          />
           <Box sx={{ display: isMobile ? 'none' : 'block' }}>
             <Typography
               variant="h5"
@@ -83,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ showTime, onAlertsClick }) => {
                 lineHeight: 1,
               }}
             >
-              FloodGuard
+              FloodGuard Pulse
             </Typography>
             <Typography
               variant="body2"
@@ -105,7 +99,7 @@ const Header: React.FC<HeaderProps> = ({ showTime, onAlertsClick }) => {
                 lineHeight: 1,
               }}
             >
-              FloodGuard
+              FloodGuard Pulse
             </Typography>
           )}
         </Box>
